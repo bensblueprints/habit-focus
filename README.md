@@ -21,14 +21,14 @@ An ADHD-focused habit tracking and productivity app with badges, notifications, 
 git init
 git add .
 git commit -m "Initial commit"
-git remote add origin https://github.com/yourusername/habit-focus.git
+git remote add origin https://github.com/bensblueprints/habit-focus.git
 git push -u origin main
 ```
 
 3. Clone the repository to continue development:
 
 ```bash
-git clone https://github.com/yourusername/habit-focus.git
+git clone https://github.com/bensblueprints/habit-focus.git
 cd habit-focus
 ```
 
