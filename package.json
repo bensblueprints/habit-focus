@@ -1,15 +1,19 @@
 {
-  "name": "focus-flow-adhd-tracker",
+  "name": "habit-focus-adhd-extension",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "create-icons": "node create-icons.js",
+    "build:extension": "npm run create-icons && npm run build && npm run zip-extension",
+    "zip-extension": "cd dist && zip -r ../habit-focus-v$npm_package_version.zip ."
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.39.6",
     "date-fns": "^2.30.0",
     "framer-motion": "^10.16.4",
     "howler": "^2.2.4",

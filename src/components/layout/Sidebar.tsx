@@ -8,11 +8,13 @@ import {
   CalendarClock,
   Settings as SettingsIcon,
   Brain,
-  Zap
+  Zap,
+  UserCircle
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import useFocusStore from '../../hooks/useFocusStore';
 import useTaskStore from '../../hooks/useTaskStore';
+import { useAuth } from '../../context/AuthContext';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -25,6 +27,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   const incompleteTasks = useTaskStore(state => 
     state.tasks.filter(task => !task.completed).length
   );
+  const { user } = useAuth();
   
   const isActive = (path: string) => {
     return location.pathname === path;
@@ -32,6 +35,11 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, setIsOpen }) => {
   
   const navItems = [
     { name: 'Dashboard', path: '/', icon: <LayoutDashboard className="h-5 w-5" /> },
+    ...(user ? [{ 
+      name: 'User Dashboard', 
+      path: '/user-dashboard', 
+      icon: <UserCircle className="h-5 w-5" /> 
+    }] : []),
     { 
       name: 'Tasks', 
       path: '/tasks', 

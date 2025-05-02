@@ -4,6 +4,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { Habit } from '../types';
 import { isSameDay, startOfDay, addDays } from 'date-fns';
 import useTaskStore from './useTaskStore';
+import useBadgeStore from './useBadgeStore';
+import useNotificationStore, { createBadgeNotification, createStreakNotification } from './useNotificationStore';
+
+// Milestone thresholds for habit streaks
+const STREAK_MILESTONES = [3, 7, 14, 30, 60, 100, 365];
 
 interface HabitState {
   habits: Habit[];
@@ -26,7 +31,56 @@ interface HabitState {
   // Task conversion
   convertHabitToTask: (habitId: string, date: Date) => void;
   generateTasksForHabits: () => void;
+  
+  // Badge and streak related
+  checkForHabitBadges: () => void;
 }
+
+// Helper to check for streak-related badges
+const checkStreakMilestones = (streak: number, habitId: string, habitTitle: string) => {
+  const badgeStore = useBadgeStore.getState();
+  const notificationStore = useNotificationStore.getState();
+  
+  // Check if this is a milestone streak
+  if (STREAK_MILESTONES.includes(streak)) {
+    // Determine badge level based on streak
+    let badgeLevel: 'bronze' | 'silver' | 'gold' | 'platinum';
+    
+    if (streak >= 100) {
+      badgeLevel = 'platinum';
+    } else if (streak >= 30) {
+      badgeLevel = 'gold';
+    } else if (streak >= 7) {
+      badgeLevel = 'silver';
+    } else {
+      badgeLevel = 'bronze';
+    }
+    
+    // Award the badge if user doesn't already have it
+    if (!badgeStore.hasBadge('habit_streak', badgeLevel)) {
+      badgeStore.awardBadge('habit_streak', badgeLevel, streak);
+      
+      // Create a badge notification
+      const notification = createBadgeNotification(
+        `${badgeLevel.charAt(0).toUpperCase() + badgeLevel.slice(1)} Streak Master`,
+        `You've achieved a ${streak}-day streak! Keep going!`,
+        habitId
+      );
+      
+      notificationStore.addNotification(notification);
+    }
+    
+    // Create a streak milestone notification
+    const streakNotification = createStreakNotification(
+      `${streak} Day Streak!`,
+      `You've kept up "${habitTitle}" for ${streak} days in a row!`,
+      habitId,
+      streak
+    );
+    
+    notificationStore.addNotification(streakNotification);
+  }
+};
 
 const useHabitStore = create<HabitState>()(
   persist(
@@ -152,18 +206,28 @@ const useHabitStore = create<HabitState>()(
             updateTask(relatedTask.id, { completed: true });
           }
           
+          const newStreak = habit.streak + 1;
+          
+          // Check for streak milestones
+          checkStreakMilestones(newStreak, habit.id, habit.title);
+          
           return {
             habits: state.habits.map((habit) => 
               habit.id === id 
                 ? { 
                     ...habit, 
                     completedDates: [...habit.completedDates, today],
-                    streak: habit.streak + 1
+                    streak: newStreak
                   } 
                 : habit
             )
           };
         });
+        
+        // Check for any habit-related badges
+        setTimeout(() => {
+          get().checkForHabitBadges();
+        }, 0);
       },
       
       markHabitIncomplete: (id, date = new Date()) => {
@@ -287,19 +351,81 @@ const useHabitStore = create<HabitState>()(
           }
         });
       },
+      
+      // Check for habit-related badges
+      checkForHabitBadges: () => {
+        const { habits } = get();
+        const badgeStore = useBadgeStore.getState();
+        const notificationStore = useNotificationStore.getState();
+        
+        // Count habits with streaks >= 3
+        const habitsWithStreaks = habits.filter(habit => habit.streak >= 3).length;
+        
+        // If user has multiple habits with streaks
+        if (habitsWithStreaks >= 3 && !badgeStore.hasBadge('consistency', 'bronze')) {
+          badgeStore.awardBadge('consistency', 'bronze', habitsWithStreaks);
+          
+          const notification = createBadgeNotification(
+            'Consistency Champion',
+            'You have 3 or more habits with active streaks!',
+            'consistency-bronze'
+          );
+          
+          notificationStore.addNotification(notification);
+        }
+        
+        if (habitsWithStreaks >= 5 && !badgeStore.hasBadge('consistency', 'silver')) {
+          badgeStore.awardBadge('consistency', 'silver', habitsWithStreaks);
+          
+          const notification = createBadgeNotification(
+            'Habit Master',
+            'You have 5 or more habits with active streaks!',
+            'consistency-silver'
+          );
+          
+          notificationStore.addNotification(notification);
+        }
+        
+        // Check for perfect week (all habits completed for the past 7 days)
+        if (habits.length > 0) {
+          const today = new Date();
+          const pastWeek = Array.from({ length: 7 }, (_, i) => addDays(today, -i));
+          
+          const allHabitsCompletedForWeek = habits.every(habit => 
+            pastWeek.every(day => 
+              habit.completedDates.some(d => isSameDay(new Date(d), day))
+            )
+          );
+          
+          if (allHabitsCompletedForWeek && !badgeStore.hasBadge('perfect_week', 'bronze')) {
+            badgeStore.awardBadge('perfect_week', 'bronze');
+            
+            const notification = createBadgeNotification(
+              'Perfect Week',
+              'You completed all your habits every day this week!',
+              'perfect-week-bronze',
+              'high'
+            );
+            
+            notificationStore.addNotification(notification);
+          }
+        }
+      }
     }),
     {
-      name: 'focus-flow-habits',
+      name: 'habit-storage'
     }
   )
 );
 
-// Helper function to calculate duration in minutes between two time strings (HH:mm)
 function calculateDurationInMinutes(startTime: string, endTime: string): number {
   const [startHour, startMinute] = startTime.split(':').map(Number);
   const [endHour, endMinute] = endTime.split(':').map(Number);
   
-  return (endHour * 60 + endMinute) - (startHour * 60 + startMinute);
+  const start = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+  
+  return end - start;
 }
 
 export default useHabitStore;

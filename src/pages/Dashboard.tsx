@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { format, addDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
-import { Award, Trophy, Zap, Clock, Target, Brain, Gauge, TrendingUp, CheckSquare, Timer, Plus, ListTodo, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Award, Trophy, Zap, Clock, Target, Brain, Gauge, TrendingUp, CheckSquare, Timer, Plus, ListTodo, ChevronLeft, ChevronRight, Calendar, UserCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import useFocusStore from '../hooks/useFocusStore';
 import useTaskStore from '../hooks/useTaskStore';
 import useHabitStore from '../hooks/useHabitStore';
+import { useAuth } from '../context/AuthContext';
 
 type CalendarView = 'day' | 'week' | 'month';
 
@@ -12,6 +13,7 @@ const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [calendarView, setCalendarView] = useState<CalendarView>('day');
   const [currentDate, setCurrentDate] = useState(addDays(new Date(), 1)); // Start with tomorrow
+  const { user } = useAuth();
   
   const totalFocusTime = useFocusStore(state => state.getTotalFocusTime());
   const averageSessionLength = useFocusStore(state => state.getAverageSessionLength());
@@ -301,10 +303,32 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
-        <p className="mt-1 text-gray-600 dark:text-gray-300">Track your productivity and progress</p>
+    <div className="container mx-auto p-4">
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <p className="text-gray-600 dark:text-gray-400">Welcome back! Here's your progress today.</p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          {user ? (
+            <button
+              onClick={() => navigate('/user-dashboard')}
+              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800"
+            >
+              <UserCircle className="h-5 w-5" />
+              My Profile
+            </button>
+          ) : (
+            <button
+              onClick={() => navigate('/login')}
+              className="inline-flex items-center gap-2 rounded-md bg-primary-600 px-4 py-2 text-white hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:bg-primary-700 dark:hover:bg-primary-800"
+            >
+              <UserCircle className="h-5 w-5" />
+              Log In
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Quick Actions */}
