@@ -1,39 +1,50 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Box } from '@mui/material';
+import { motion } from 'framer-motion';
+import { useThemeContext } from '../../context/ThemeContext';
 
-// Collection of animated background URLs
-const backgroundVideos = [
-  'https://player.vimeo.com/external/303072660.sd.mp4?s=15b9b1f7b1d3f13f50f916eeedbba0c1503b3a4e&profile_id=164&oauth2_token_id=57447761',
-  'https://player.vimeo.com/external/321837978.sd.mp4?s=3fdc4e46a8fdc85be7823bf7d94f67e5c8eddd55&profile_id=164&oauth2_token_id=57447761',
-  'https://player.vimeo.com/external/323293687.sd.mp4?s=d3a398485db87dc58bab4068d203f7d98d95b4ca&profile_id=164&oauth2_token_id=57447761',
-  'https://player.vimeo.com/external/247695477.sd.mp4?s=9a26952d95b76a57c766a4b36aed9d88d9b0cf60&profile_id=164&oauth2_token_id=57447761',
-  'https://player.vimeo.com/external/368763065.sd.mp4?s=13b81605a3bcde51d3c0906b8a9bc83c8359ab0e&profile_id=164&oauth2_token_id=57447761'
-];
+// Motion components
+const MotionBox = motion(Box);
 
-// Gradient backgrounds for different sections
-const gradientBackgrounds = {
-  default: 'linear-gradient(135deg, #6B73FF 0%, #000DFF 100%)',
-  focus: 'linear-gradient(135deg, #FF6B6B 0%, #FF0000 100%)',
-  tasks: 'linear-gradient(135deg, #6BFF9E 0%, #00FF66 100%)',
-  habits: 'linear-gradient(135deg, #FFD86B 0%, #FFBB00 100%)',
-  settings: 'linear-gradient(135deg, #9E6BFF 0%, #7700FF 100%)'
-};
+const AnimatedBackground = () => {
+  const { currentTheme } = useThemeContext();
+  const [particles, setParticles] = useState<Array<any>>([]);
+  const [windowSize, setWindowSize] = useState({ 
+    width: window.innerWidth, 
+    height: window.innerHeight 
+  });
 
-interface AnimatedBackgroundProps {
-  section?: 'default' | 'focus' | 'tasks' | 'habits' | 'settings';
-  useVideo?: boolean;
-}
-
-export default function AnimatedBackground({ section = 'default', useVideo = true }: AnimatedBackgroundProps) {
-  const [videoUrl, setVideoUrl] = useState('');
-  
+  // Handle window resize
   useEffect(() => {
-    // Randomly select a video background
-    if (useVideo) {
-      const randomIndex = Math.floor(Math.random() * backgroundVideos.length);
-      setVideoUrl(backgroundVideos[randomIndex]);
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      });
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Generate particles based on current theme
+  useEffect(() => {
+    const particleCount = 15; // Number of particles to generate
+    const newParticles = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      newParticles.push({
+        id: i,
+        x: Math.random() * windowSize.width,
+        y: Math.random() * windowSize.height,
+        size: Math.random() * 100 + 50,
+        duration: Math.random() * 20 + 10,
+        color: i % 2 === 0 ? currentTheme.gradientStart : currentTheme.gradientEnd
+      });
     }
-  }, [useVideo]);
+
+    setParticles(newParticles);
+  }, [currentTheme, windowSize]);
 
   return (
     <Box
@@ -45,34 +56,40 @@ export default function AnimatedBackground({ section = 'default', useVideo = tru
         bottom: 0,
         zIndex: -1,
         overflow: 'hidden',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: gradientBackgrounds[section],
-          opacity: 0.8,
-          zIndex: 1
-        }
+        background: `linear-gradient(135deg, ${currentTheme.gradientStart}05, ${currentTheme.gradientEnd}08)`,
       }}
     >
-      {useVideo && videoUrl && (
-        <video
-          autoPlay
-          muted
-          loop
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            position: 'absolute'
+      {particles.map((particle) => (
+        <MotionBox
+          key={particle.id}
+          sx={{
+            position: 'absolute',
+            width: particle.size,
+            height: particle.size,
+            borderRadius: '50%',
+            background: `radial-gradient(circle, ${particle.color}30 0%, transparent 70%)`,
+            filter: 'blur(8px)',
           }}
-        >
-          <source src={videoUrl} type="video/mp4" />
-        </video>
-      )}
+          initial={{
+            x: particle.x,
+            y: particle.y,
+            opacity: 0.4,
+          }}
+          animate={{
+            x: [particle.x, particle.x + Math.random() * 100 - 50],
+            y: [particle.y, particle.y + Math.random() * 100 - 50],
+            opacity: [0.4, 0.7, 0.4],
+          }}
+          transition={{
+            duration: particle.duration,
+            repeat: Infinity,
+            repeatType: 'reverse',
+            ease: 'easeInOut',
+          }}
+        />
+      ))}
     </Box>
   );
-} 
+};
+
+export default AnimatedBackground; 

@@ -29,41 +29,31 @@ import {
   Bolt as BoltIcon,
   Settings as SettingsIcon,
   Close as CloseIcon,
-  Celebration as CelebrationIcon
+  Celebration as CelebrationIcon,
+  Psychology as BrainIcon
 } from '@mui/icons-material';
 import { Link } from 'react-router-dom';
 import { useAppContext } from '../../context/AppContext';
+import { useThemeContext } from '../../context/ThemeContext';
 import AnimatedBackground from './AnimatedBackground';
+import BrainDumpDialog from './BrainDumpDialog';
 import { motion } from 'framer-motion';
 
 const drawerWidth = 260;
 
 const MotionListItem = motion(ListItem);
 const MotionIconButton = motion(IconButton);
+const MotionBadge = motion(Badge);
 
 export default function AppLayout() {
   const theme = useTheme();
   const location = useLocation();
   const { points, achievements } = useAppContext();
+  const { currentTheme } = useThemeContext();
   
   const [open, setOpen] = useState(true);
-  const [currentSection, setCurrentSection] = useState<'default' | 'focus' | 'tasks' | 'habits' | 'settings'>('default');
   const [showConfetti, setShowConfetti] = useState(false);
-
-  // Determine current section based on location
-  useEffect(() => {
-    if (location.pathname.includes('focus')) {
-      setCurrentSection('focus');
-    } else if (location.pathname.includes('tasks')) {
-      setCurrentSection('tasks');
-    } else if (location.pathname.includes('habits')) {
-      setCurrentSection('habits');
-    } else if (location.pathname.includes('settings')) {
-      setCurrentSection('settings');
-    } else {
-      setCurrentSection('default');
-    }
-  }, [location]);
+  const [showBrainDump, setShowBrainDump] = useState(false);
 
   // Show celebration animation when points increase
   useEffect(() => {
@@ -91,7 +81,7 @@ export default function AppLayout() {
   return (
     <Box sx={{ display: 'flex' }}>
       {/* Animated Background */}
-      <AnimatedBackground section={currentSection} />
+      <AnimatedBackground />
       
       {/* App Bar */}
       <AppBar
@@ -127,20 +117,43 @@ export default function AppLayout() {
             sx={{ 
               flexGrow: 1, 
               fontWeight: 'bold',
-              background: 'linear-gradient(45deg, #FF6B6B, #6B73FF)',
+              background: `linear-gradient(45deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})`,
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent'
             }}
           >
             FocusFlow
           </Typography>
+          
+          {/* Brain Dump Button */}
+          <MotionIconButton
+            color="warning"
+            onClick={() => setShowBrainDump(true)}
+            sx={{ 
+              mr: 2,
+              bgcolor: 'rgba(255, 152, 0, 0.1)',
+              border: '2px solid rgba(255, 152, 0, 0.3)',
+              '&:hover': {
+                bgcolor: 'rgba(255, 152, 0, 0.2)',
+              }
+            }}
+            whileHover={{ 
+              scale: 1.1,
+              rotate: [0, -10, 10, -5, 5, 0],
+              transition: { duration: 0.5 }
+            }}
+            whileTap={{ scale: 0.9 }}
+          >
+            <BrainIcon />
+          </MotionIconButton>
+          
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <Tooltip 
               title={`You have ${points} points!`} 
               arrow
               TransitionComponent={Zoom}
             >
-              <Badge 
+              <MotionBadge 
                 badgeContent={achievements.length} 
                 color="secondary"
                 overlap="circular"
@@ -148,17 +161,19 @@ export default function AppLayout() {
                   vertical: 'bottom',
                   horizontal: 'right',
                 }}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
               >
                 <Avatar 
                   sx={{ 
-                    bgcolor: 'primary.main',
+                    bgcolor: currentTheme.primaryColor,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                     border: '2px solid white'
                   }}
                 >
                   {points}
                 </Avatar>
-              </Badge>
+              </MotionBadge>
             </Tooltip>
           </Box>
         </Toolbar>
@@ -189,9 +204,9 @@ export default function AppLayout() {
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <BoltIcon 
-              color="primary" 
-              fontSize="large" 
               sx={{ 
+                color: currentTheme.primaryColor,
+                fontSize: 'large',
                 animation: 'pulse 2s infinite',
                 '@keyframes pulse': {
                   '0%': { opacity: 0.6, transform: 'scale(1)' },
@@ -204,7 +219,7 @@ export default function AppLayout() {
               variant="h6" 
               sx={{ 
                 fontWeight: 'bold',
-                background: 'linear-gradient(45deg, #FF6B6B, #6B73FF)',
+                background: `linear-gradient(45deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})`,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent'
               }}
@@ -238,19 +253,19 @@ export default function AppLayout() {
                   borderRadius: 2,
                   transition: 'all 0.2s',
                   '&.Mui-selected': {
-                    bgcolor: 'rgba(25, 118, 210, 0.12)',
-                    borderRight: '4px solid #1976d2',
+                    bgcolor: `${currentTheme.primaryColor}22`,
+                    borderRight: `4px solid ${currentTheme.primaryColor}`,
                     '&:hover': {
-                      bgcolor: 'rgba(25, 118, 210, 0.18)',
+                      bgcolor: `${currentTheme.primaryColor}33`,
                     }
                   },
                   '&:hover': {
-                    bgcolor: 'rgba(25, 118, 210, 0.08)',
+                    bgcolor: `${currentTheme.primaryColor}11`,
                   }
                 }}
               >
                 <ListItemIcon sx={{ 
-                  color: location.pathname === item.path ? 'primary.main' : 'text.secondary',
+                  color: location.pathname === item.path ? currentTheme.primaryColor : 'text.secondary',
                   minWidth: 45 
                 }}>
                   {item.icon}
@@ -317,47 +332,63 @@ export default function AppLayout() {
             pointerEvents: 'none',
           }}
         >
-          <CelebrationIcon
-            sx={{
-              color: 'gold',
-              position: 'absolute',
-              fontSize: 40,
-              animation: 'fall 3s linear',
-              left: `${Math.random() * 100}%`,
-              '@keyframes fall': {
-                '0%': { transform: 'translateY(-100px) rotate(0deg)', opacity: 1 },
-                '100%': { transform: 'translateY(100vh) rotate(360deg)', opacity: 0 }
-              }
-            }}
-          />
-          <CelebrationIcon
-            sx={{
-              color: 'pink',
-              position: 'absolute',
-              fontSize: 40,
-              animation: 'fall 2.5s linear',
-              left: `${Math.random() * 100}%`,
-              '@keyframes fall': {
-                '0%': { transform: 'translateY(-100px) rotate(0deg)', opacity: 1 },
-                '100%': { transform: 'translateY(100vh) rotate(360deg)', opacity: 0 }
-              }
-            }}
-          />
-          <CelebrationIcon
-            sx={{
-              color: 'cyan',
-              position: 'absolute',
-              fontSize: 40,
-              animation: 'fall 3.5s linear',
-              left: `${Math.random() * 100}%`,
-              '@keyframes fall': {
-                '0%': { transform: 'translateY(-100px) rotate(0deg)', opacity: 1 },
-                '100%': { transform: 'translateY(100vh) rotate(360deg)', opacity: 0 }
-              }
-            }}
-          />
+          {[...Array(10)].map((_, i) => (
+            <CelebrationIcon
+              key={i}
+              sx={{
+                color: i % 3 === 0 ? currentTheme.primaryColor : 
+                       i % 3 === 1 ? currentTheme.secondaryColor : 
+                       currentTheme.accentColor,
+                position: 'absolute',
+                fontSize: 30 + Math.random() * 20,
+                animation: `fall ${2 + Math.random() * 2}s linear`,
+                left: `${Math.random() * 100}%`,
+                top: `-${Math.random() * 100}px`,
+                '@keyframes fall': {
+                  '0%': { transform: 'translateY(-100px) rotate(0deg)', opacity: 1 },
+                  '100%': { transform: 'translateY(100vh) rotate(360deg)', opacity: 0 }
+                }
+              }}
+            />
+          ))}
         </Box>
       )}
+      
+      {/* Floating Brain Dump Button (always visible) */}
+      <MotionIconButton
+        color="warning"
+        onClick={() => setShowBrainDump(true)}
+        sx={{ 
+          position: 'fixed',
+          bottom: 30,
+          right: 30,
+          width: 65,
+          height: 65,
+          zIndex: 100,
+          bgcolor: '#FF9800',
+          color: 'white',
+          boxShadow: '0 4px 15px rgba(255, 152, 0, 0.4)',
+          '&:hover': {
+            bgcolor: '#F57C00',
+          }
+        }}
+        whileHover={{ 
+          scale: 1.1,
+          boxShadow: '0 6px 20px rgba(255, 152, 0, 0.6)'
+        }}
+        whileTap={{ scale: 0.9 }}
+        initial={{ y: 100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 15 }}
+      >
+        <BrainIcon sx={{ fontSize: 30 }} />
+      </MotionIconButton>
+      
+      {/* Brain Dump Dialog */}
+      <BrainDumpDialog 
+        open={showBrainDump} 
+        onClose={() => setShowBrainDump(false)} 
+      />
     </Box>
   );
 } 

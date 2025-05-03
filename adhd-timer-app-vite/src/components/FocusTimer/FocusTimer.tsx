@@ -17,9 +17,12 @@ import {
   Tabs,
   Tab,
   IconButton,
-  useTheme,
   Zoom,
-  Grow
+  Grow,
+  Slide,
+  useScrollTrigger,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import { 
   PlayArrow as PlayIcon, 
@@ -29,10 +32,14 @@ import {
   Close as CloseIcon,
   EmojiObjects as LightbulbIcon,
   LocalFireDepartment as FireIcon,
-  Vibration as VibrationIcon
+  Vibration as VibrationIcon,
+  CheckCircle as CheckCircleIcon,
+  Bolt as BoltIcon
 } from '@mui/icons-material';
 import { useAppContext } from '../../context/AppContext';
+import { useThemeContext } from '../../context/ThemeContext';
 import { motion } from 'framer-motion';
+import notificationService from '../../utils/notificationService';
 
 // Timer modes
 type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
@@ -40,16 +47,60 @@ type TimerMode = 'focus' | 'shortBreak' | 'longBreak';
 const MotionIconButton = motion(IconButton);
 const MotionBox = motion(Box);
 
+// Sticky Timer Header Component
+function StickyTimer(props: {
+  children: React.ReactNode,
+  isActive: boolean
+}) {
+  const trigger = useScrollTrigger({
+    disableHysteresis: true,
+    threshold: 100,
+  });
+
+  return (
+    <Box>
+      {/* Fixed position version that appears when scrolling */}
+      <Slide appear={false} direction="down" in={trigger && props.isActive}>
+        <Paper
+          elevation={4}
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            borderRadius: 0,
+            p: 2,
+            bgcolor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(10px)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.1)',
+          }}
+        >
+          {props.children}
+        </Paper>
+      </Slide>
+      {/* Original position */}
+      <Box sx={{ visibility: trigger && props.isActive ? 'hidden' : 'visible' }}>
+        {props.children}
+      </Box>
+    </Box>
+  );
+}
+
 export default function FocusTimer() {
-  const theme = useTheme();
   const { 
     tasks, 
     startFocusSession, 
     pauseFocusSession, 
     resumeFocusSession, 
     endFocusSession, 
-    currentSession 
+    currentSession,
+    completeTask,
+    streak
   } = useAppContext();
+  
+  // Use the theme context for cosmic colors
+  const { currentTheme } = useThemeContext();
   
   const [searchParams] = useSearchParams();
   const taskId = searchParams.get('taskId');
@@ -61,6 +112,9 @@ export default function FocusTimer() {
   const [isPaused, setIsPaused] = useState(false);
   const [focusTaskInput, setFocusTaskInput] = useState('');
   
+  // Success message state
+  const [showSuccessAlert, setShowSuccessAlert] = useState(false);
+  
   // Pause dialog
   const [showPauseDialog, setShowPauseDialog] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
@@ -71,12 +125,42 @@ export default function FocusTimer() {
   const [shortBreakDuration] = useState(5 * 60); // 5 minutes
   const [longBreakDuration] = useState(15 * 60); // 15 minutes
   
+  // Last notified progress percentage
+  const [lastNotifiedProgress, setLastNotifiedProgress] = useState<number>(0);
+  
   // Visual effects
   const [pulseEffect, setPulseEffect] = useState(false);
+  
+  // Add state for streak bonus notification
+  const [showStreakBonus, setShowStreakBonus] = useState(false);
+  const [streakBonusAmount, setStreakBonusAmount] = useState(0);
   
   const intervalRef = useRef<number | null>(null);
   
   const task = tasks.find(t => t.id === taskId);
+  
+  // Calculate the streak bonus multiplier (same as in AppContext)
+  const getStreakBonusMultiplier = (streakCount: number): number => {
+    if (streakCount < 3) return 1.0; // No bonus under 3 days
+    if (streakCount < 7) return 1.1; // 10% bonus for 3-6 days
+    if (streakCount < 14) return 1.2; // 20% bonus for 7-13 days
+    if (streakCount < 30) return 1.3; // 30% bonus for 14-29 days
+    return 1.5; // 50% bonus for 30+ days
+  };
+  
+  // Handle task completion
+  const handleTaskComplete = () => {
+    if (taskId) {
+      completeTask(taskId);
+      setShowSuccessAlert(true);
+      
+      // End the focus session if it's active
+      if (isActive) {
+        endFocusSession();
+        setIsActive(false);
+      }
+    }
+  };
   
   // Initialize timer with task's estimated time if available
   useEffect(() => {
@@ -111,11 +195,21 @@ export default function FocusTimer() {
             handleComplete();
             return 0;
           }
+          
           // Create a pulse effect every minute
           if (prevTime % 60 === 0) {
             setPulseEffect(true);
             setTimeout(() => setPulseEffect(false), 1000);
           }
+          
+          // Calculate current progress percentage
+          const currentProgress = calculateProgress();
+          
+          // Send progress notifications at specific milestones
+          if (timerMode === 'focus') {
+            checkProgressNotifications(currentProgress);
+          }
+          
           return prevTime - 1;
         });
       }, 1000);
@@ -127,6 +221,32 @@ export default function FocusTimer() {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isActive, isPaused]);
+  
+  // Check if we should send a progress notification
+  const checkProgressNotifications = (currentProgress: number) => {
+    // Define the milestone percentages
+    const milestones = [25, 50, 75, 100];
+    
+    // Find the current milestone
+    const currentMilestone = milestones.find(
+      milestone => 
+        currentProgress >= milestone && 
+        lastNotifiedProgress < milestone
+    );
+    
+    // If we've reached a new milestone, send a notification
+    if (currentMilestone) {
+      notificationService.showProgressNotification(currentMilestone);
+      setLastNotifiedProgress(currentMilestone);
+    }
+  };
+  
+  // Reset notification state when starting a new timer
+  useEffect(() => {
+    if (!isActive) {
+      setLastNotifiedProgress(0);
+    }
+  }, [isActive, timerMode]);
   
   const handleModeChange = (_event: React.SyntheticEvent, newMode: TimerMode) => {
     setTimerMode(newMode);
@@ -197,6 +317,28 @@ export default function FocusTimer() {
     setIsActive(false);
     
     if (timerMode === 'focus') {
+      // Show 100% complete notification
+      notificationService.showProgressNotification(100);
+      
+      // Calculate streak bonus for display
+      const streakMultiplier = getStreakBonusMultiplier(streak);
+      
+      // Only show streak bonus if there's actually a bonus
+      if (streakMultiplier > 1.0) {
+        const basePoints = Math.floor(time / 60) * 2; // 2 points per minute
+        const bonusPoints = Math.floor(basePoints * streakMultiplier) - basePoints;
+        
+        if (bonusPoints > 0) {
+          setStreakBonusAmount(bonusPoints);
+          setShowStreakBonus(true);
+          
+          // Hide bonus notification after a few seconds
+          setTimeout(() => {
+            setShowStreakBonus(false);
+          }, 4000);
+        }
+      }
+      
       endFocusSession();
       // Automatically transition to break
       setTimerMode('shortBreak');
@@ -227,23 +369,26 @@ export default function FocusTimer() {
 
   // Get mode-specific colors and icons
   const getModeTheme = () => {
+    const themeColor = currentTheme.primaryColor;
+    const themeGradient = `linear-gradient(135deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})`;
+    
     switch(timerMode) {
       case 'focus':
         return {
           color: '#FF6B6B',
-          gradient: 'linear-gradient(135deg, #FF6B6B, #FF3636)',
+          gradient: timerMode === 'focus' ? themeGradient : 'linear-gradient(135deg, #FF6B6B, #FF3636)',
           icon: <FireIcon fontSize="large" sx={{ color: '#FF6B6B' }} />
         };
       case 'shortBreak':
         return {
           color: '#6BFF9E',
-          gradient: 'linear-gradient(135deg, #6BFF9E, #00FF66)',
+          gradient: timerMode === 'shortBreak' ? themeGradient : 'linear-gradient(135deg, #6BFF9E, #00FF66)',
           icon: <LightbulbIcon fontSize="large" sx={{ color: '#6BFF9E' }} />
         };
       case 'longBreak':
         return {
           color: '#9E6BFF',
-          gradient: 'linear-gradient(135deg, #9E6BFF, #7700FF)',
+          gradient: timerMode === 'longBreak' ? themeGradient : 'linear-gradient(135deg, #9E6BFF, #7700FF)',
           icon: <VibrationIcon fontSize="large" sx={{ color: '#9E6BFF' }} />
         };
     }
@@ -251,12 +396,60 @@ export default function FocusTimer() {
 
   const modeTheme = getModeTheme();
 
+  // Timer display to be shown in both the regular and sticky positions
+  const timerDisplay = (
+    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+      <Typography variant="h5" sx={{ fontWeight: 'bold', minWidth: 100 }}>
+        {formatTime()}
+      </Typography>
+      
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+        <IconButton
+          color="primary"
+          onClick={!isActive ? handleStart : isPaused ? handleResume : handlePause}
+          sx={{
+            border: `2px solid ${modeTheme.color}`,
+            p: 1.5
+          }}
+        >
+          {!isActive || isPaused ? <PlayIcon /> : <PauseIcon />}
+        </IconButton>
+        
+        <IconButton
+          color="primary"
+          onClick={handleReset}
+          disabled={!isActive}
+          sx={{ border: '1px solid rgba(0,0,0,0.1)', p: 1 }}
+        >
+          <RefreshIcon />
+        </IconButton>
+      </Box>
+      
+      {task && !task.completed && (
+        <Button
+          variant="contained"
+          color="success"
+          startIcon={<CheckCircleIcon />}
+          onClick={handleTaskComplete}
+          sx={{ ml: 2, borderRadius: 2, textTransform: 'none' }}
+        >
+          Finish Task
+        </Button>
+      )}
+    </Box>
+  );
+
   return (
     <MotionBox
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
     >
+      {/* Sticky Timer Header */}
+      <StickyTimer isActive={isActive}>
+        {timerDisplay}
+      </StickyTimer>
+      
       <Box sx={{ textAlign: 'center', mb: 3 }}>
         <Tabs 
           value={timerMode} 
@@ -467,6 +660,29 @@ export default function FocusTimer() {
         </MotionIconButton>
       </Box>
       
+      {task && !task.completed && (
+        <Box sx={{ display: 'flex', justifyContent: 'center', mb: 4 }}>
+          <Button
+            variant="contained"
+            color="success"
+            size="large"
+            startIcon={<CheckCircleIcon />}
+            onClick={handleTaskComplete}
+            sx={{ 
+              py: 1.5, 
+              px: 4, 
+              borderRadius: 3, 
+              fontSize: '1.1rem',
+              textTransform: 'none',
+              fontWeight: 'bold',
+              boxShadow: '0 8px 20px rgba(76, 175, 80, 0.3)'
+            }}
+          >
+            Finish Task
+          </Button>
+        </Box>
+      )}
+      
       {timerMode === 'focus' && (
         <Zoom in={true} timeout={800}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
@@ -582,6 +798,29 @@ export default function FocusTimer() {
         </Zoom>
       )}
       
+      {/* Success notification */}
+      <Snackbar
+        open={showSuccessAlert}
+        autoHideDuration={4000}
+        onClose={() => setShowSuccessAlert(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setShowSuccessAlert(false)} 
+          severity="success" 
+          variant="filled"
+          sx={{ 
+            width: '100%',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+            borderRadius: 2
+          }}
+        >
+          <Typography variant="body1" sx={{ fontWeight: 'medium' }}>
+            Task completed successfully! Great job! 🎉
+          </Typography>
+        </Alert>
+      </Snackbar>
+      
       {/* Pause Dialog */}
       <Dialog 
         open={showPauseDialog} 
@@ -662,6 +901,38 @@ export default function FocusTimer() {
           </Button>
         </DialogActions>
       </Dialog>
+      
+      {/* Streak bonus notification */}
+      <Snackbar
+        open={showStreakBonus}
+        autoHideDuration={4000}
+        onClose={() => setShowStreakBonus(false)}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          severity="success" 
+          variant="filled"
+          icon={<BoltIcon />}
+          sx={{ 
+            width: '100%',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.15)',
+            borderRadius: 2,
+            bgcolor: 'warning.main'
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 'bold' }}>
+              Streak Bonus! +{streakBonusAmount} points
+            </Typography>
+            <Chip 
+              size="small" 
+              label={`${Math.round((getStreakBonusMultiplier(streak) - 1) * 100)}% Bonus`} 
+              color="warning" 
+              sx={{ bgcolor: 'rgba(255, 255, 255, 0.3)' }}
+            />
+          </Box>
+        </Alert>
+      </Snackbar>
     </MotionBox>
   );
 } 

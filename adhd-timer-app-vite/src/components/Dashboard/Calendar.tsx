@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Box, 
   Paper, 
@@ -9,24 +9,44 @@ import {
   List,
   ListItem,
   ListItemText,
-  Chip
+  Chip,
+  IconButton,
+  Tooltip
 } from '@mui/material';
 import { 
   ArrowBack as ArrowBackIcon, 
   ArrowForward as ArrowForwardIcon,
-  PlayArrow as PlayIcon
+  PlayArrow as PlayIcon,
+  Add as AddIcon,
+  Search as SearchIcon,
+  Settings as SettingsIcon
 } from '@mui/icons-material';
-import { format, startOfWeek, addDays, isSameDay, addWeeks, subWeeks, isToday } from 'date-fns';
+import { 
+  format, 
+  startOfWeek, 
+  endOfWeek,
+  addDays, 
+  isSameDay, 
+  addWeeks, 
+  subWeeks, 
+  isToday,
+  startOfDay,
+  addHours,
+  isSameHour,
+  isWithinInterval,
+  parseISO
+} from 'date-fns';
 import { useAppContext } from '../../context/AppContext';
 import { Link } from 'react-router-dom';
 
-const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+// Define time slots for the day
+const HOURS = Array.from({ length: 14 }, (_, i) => i + 7); // 7 AM to 8 PM
 
 export default function Calendar() {
   const theme = useTheme();
   const { tasks, timeBlocks } = useAppContext();
-  const [weekStart, setWeekStart] = useState(startOfWeek(new Date()));
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [weekStart, setWeekStart] = useState(startOfWeek(new Date(), { weekStartsOn: 0 }));
+  const [selectedEvent, setSelectedEvent] = useState<any | null>(null);
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
   const handleNextWeek = () => {
@@ -37,291 +57,341 @@ export default function Calendar() {
     setWeekStart(subWeeks(weekStart, 1));
   };
 
-  const handleDayClick = (day: Date, event: React.MouseEvent<HTMLElement>) => {
-    setSelectedDay(day);
-    setAnchorEl(event.currentTarget);
+  const handleEventClick = (event: any, domEvent: React.MouseEvent<HTMLElement>) => {
+    setSelectedEvent(event);
+    setAnchorEl(domEvent.currentTarget);
   };
 
   const handleClose = () => {
     setAnchorEl(null);
+    setSelectedEvent(null);
   };
 
-  // Generate the days of the current week
-  const weekDaysDate = [...Array(7)].map((_, i) => addDays(weekStart, i));
-
-  // Filter tasks and time blocks for the selected day
-  const getTasksForDay = (day: Date) => {
-    if (!day) return [];
+  // Generate days of the current week (7 days)
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  
+  // Get events for a specific day and hour
+  const getEventsForTimeSlot = (day: Date, hour: number) => {
+    const start = addHours(startOfDay(day), hour);
+    const end = addHours(startOfDay(day), hour + 1);
     
-    return tasks.filter(task => {
+    const timeBlocksInSlot = timeBlocks.filter(block => {
+      const blockStart = new Date(block.start);
+      const blockEnd = new Date(block.end);
+      
+      return isWithinInterval(blockStart, { start, end }) || 
+             isWithinInterval(blockEnd, { start, end }) ||
+             (blockStart <= start && blockEnd >= end);
+    });
+    
+    const tasksWithDueTime = tasks.filter(task => {
       if (!task.dueDate) return false;
       const taskDate = new Date(task.dueDate);
-      return isSameDay(taskDate, day);
+      return isSameDay(taskDate, day) && 
+             taskDate.getHours() === hour;
     });
-  };
-
-  const getTimeBlocksForDay = (day: Date) => {
-    if (!day) return [];
     
-    return timeBlocks.filter(block => {
-      const blockDate = new Date(block.start);
-      return isSameDay(blockDate, day);
-    });
+    return [...timeBlocksInSlot, ...tasksWithDueTime];
   };
-
-  const selectedDayTasks = selectedDay ? getTasksForDay(selectedDay) : [];
-  const selectedDayBlocks = selectedDay ? getTimeBlocksForDay(selectedDay) : [];
-  const hasEvents = selectedDayTasks.length > 0 || selectedDayBlocks.length > 0;
+  
+  // Format the week range for display
+  const formatWeekRange = () => {
+    const weekEnd = endOfWeek(weekStart, { weekStartsOn: 0 });
+    const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+    
+    if (sameMonth) {
+      return `${format(weekStart, 'MMMM d')} – ${format(weekEnd, 'd, yyyy')}`;
+    } else {
+      return `${format(weekStart, 'MMM d')} – ${format(weekEnd, 'MMM d, yyyy')}`;
+    }
+  };
 
   return (
-    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, mb: 3 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6" sx={{ fontWeight: 'bold' }}>
-          Calendar
-        </Typography>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Calendar header with navigation */}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        mb: 2
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Button
+            variant="outlined"
+            size="small"
+            sx={{ 
+              borderRadius: 4,
+              textTransform: 'none',
+              px: 2
+            }}
+          >
+            Today
+          </Button>
+          <IconButton onClick={handlePrevWeek}>
+            <ArrowBackIcon />
+          </IconButton>
+          <IconButton onClick={handleNextWeek}>
+            <ArrowForwardIcon />
+          </IconButton>
+          <Typography variant="h6" sx={{ fontWeight: 'medium' }}>
+            {formatWeekRange()}
+          </Typography>
+        </Box>
+        
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button 
-            variant="outlined" 
-            size="small" 
-            startIcon={<ArrowBackIcon />} 
-            onClick={handlePrevWeek}
-            sx={{ minWidth: 'auto', px: 1 }}
+            variant="outlined"
+            endIcon={<ArrowForwardIcon fontSize="small" />}
+            sx={{ borderRadius: 4, textTransform: 'none' }}
           >
-            Prev
+            Week
           </Button>
-          <Button 
-            variant="outlined" 
-            size="small" 
-            endIcon={<ArrowForwardIcon />} 
-            onClick={handleNextWeek}
-            sx={{ minWidth: 'auto', px: 1 }}
-          >
-            Next
-          </Button>
+          <Tooltip title="Search">
+            <IconButton>
+              <SearchIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Settings">
+            <IconButton>
+              <SettingsIcon />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Box>
-      
-      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
-        {weekDays.map((day) => (
-          <Box key={day}>
-            <Typography 
-              variant="subtitle2" 
-              align="center" 
-              color="textSecondary"
-              sx={{ fontWeight: 'medium', mb: 1 }}
-            >
-              {day}
-            </Typography>
-          </Box>
-        ))}
 
-        {weekDaysDate.map((day, index) => {
+      {/* Days of week header */}
+      <Box sx={{ 
+        display: 'grid',
+        gridTemplateColumns: 'minmax(60px, auto) repeat(7, 1fr)',
+        borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
+        bgcolor: 'background.paper'
+      }}>
+        {/* Empty cell for time column */}
+        <Box sx={{ 
+          py: 1, 
+          px: 1, 
+          borderRight: '1px solid rgba(0, 0, 0, 0.1)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+          <Typography variant="caption" color="text.secondary">GMT+07</Typography>
+        </Box>
+        
+        {/* Day headers */}
+        {weekDays.map((day, index) => {
           const isCurrentDay = isToday(day);
-          const dayTasks = getTasksForDay(day);
-          const dayBlocks = getTimeBlocksForDay(day);
-          const hasTasksOrBlocks = dayTasks.length > 0 || dayBlocks.length > 0;
           
           return (
-            <Box key={index}>
-              <Paper
-                elevation={0}
-                onClick={(e) => handleDayClick(day, e)}
-                sx={{
-                  p: 1,
-                  height: 100,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  cursor: 'pointer',
-                  borderRadius: 2,
-                  backgroundColor: isCurrentDay 
-                    ? 'rgba(25, 118, 210, 0.08)'
-                    : 'white',
-                  border: isCurrentDay
-                    ? `1px solid ${theme.palette.primary.main}`
-                    : '1px solid #eee',
-                  '&:hover': {
-                    backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                  },
-                  overflow: 'hidden'
+            <Box 
+              key={index}
+              sx={{ 
+                py: 1,
+                borderRight: index < 6 ? '1px solid rgba(0, 0, 0, 0.1)' : 'none',
+                bgcolor: isCurrentDay ? 'primary.main' : 'transparent',
+                color: isCurrentDay ? 'white' : 'inherit',
+                textAlign: 'center',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                position: 'relative'
+              }}
+            >
+              <Typography variant="caption" sx={{ fontWeight: 'medium' }}>
+                {format(day, 'EEE').toUpperCase()}
+              </Typography>
+              <Typography 
+                variant="h6" 
+                sx={{ 
+                  fontWeight: isCurrentDay ? 'bold' : 'medium',
+                  ...(isCurrentDay && {
+                    width: 36,
+                    height: 36,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    borderRadius: '50%',
+                    bgcolor: 'primary.main',
+                    color: 'white',
+                  })
                 }}
               >
-                <Typography
-                  variant="subtitle1"
-                  align="center"
-                  sx={{
-                    fontWeight: isCurrentDay ? 'bold' : 'medium',
-                    color: isCurrentDay ? theme.palette.primary.main : 'inherit',
-                    mb: 1
-                  }}
-                >
-                  {format(day, 'd')}
-                </Typography>
-                
-                {hasTasksOrBlocks && (
-                  <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                    {dayTasks.slice(0, 2).map((task, i) => (
-                      <Box
-                        key={i}
-                        sx={{
-                          p: 0.5,
-                          borderRadius: 1,
-                          mb: 0.5,
-                          backgroundColor: 'rgba(25, 118, 210, 0.1)',
-                          color: theme.palette.primary.main,
-                          fontSize: '0.75rem',
-                          fontWeight: 'medium',
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis'
-                        }}
-                      >
-                        {task.title}
-                      </Box>
-                    ))}
-                    
-                    {dayTasks.length > 2 && (
-                      <Typography variant="caption" sx={{ pl: 0.5, color: 'text.secondary' }}>
-                        +{dayTasks.length - 2} more
-                      </Typography>
-                    )}
-                  </Box>
-                )}
-              </Paper>
+                {format(day, 'd')}
+              </Typography>
             </Box>
           );
         })}
       </Box>
-      
+
+      {/* Time grid */}
+      <Box sx={{ 
+        flex: 1,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(60px, auto) repeat(7, 1fr)',
+        gridTemplateRows: `repeat(${HOURS.length}, minmax(60px, 1fr))`,
+        overflowY: 'auto',
+        position: 'relative'
+      }}>
+        {/* Time labels column */}
+        {HOURS.map((hour, index) => (
+          <Box 
+            key={hour}
+            sx={{ 
+              gridColumn: 1,
+              gridRow: index + 1,
+              borderRight: '1px solid rgba(0, 0, 0, 0.1)',
+              borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
+              py: 1,
+              pr: 1,
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'flex-end',
+            }}
+          >
+            <Typography variant="caption" color="text.secondary">
+              {hour === 12 ? '12 PM' : hour > 12 ? `${hour-12} PM` : `${hour} AM`}
+            </Typography>
+          </Box>
+        ))}
+
+        {/* Time slots for each day */}
+        {weekDays.map((day, dayIndex) => (
+          HOURS.map((hour, hourIndex) => {
+            const events = getEventsForTimeSlot(day, hour);
+            const isCurrentTimeSlot = isToday(day) && new Date().getHours() === hour;
+            
+            return (
+              <Box 
+                key={`${dayIndex}-${hour}`}
+                sx={{ 
+                  gridColumn: dayIndex + 2,
+                  gridRow: hourIndex + 1,
+                  borderRight: dayIndex < 6 ? '1px solid rgba(0, 0, 0, 0.1)' : 'none',
+                  borderBottom: '1px solid rgba(0, 0, 0, 0.1)',
+                  position: 'relative',
+                  bgcolor: isCurrentTimeSlot ? 'rgba(25, 118, 210, 0.05)' : 'transparent',
+                  '&:hover': {
+                    bgcolor: 'rgba(0, 0, 0, 0.02)',
+                    cursor: 'pointer'
+                  }
+                }}
+              >
+                {events.length > 0 && (
+                  <Box sx={{ p: 0.5 }}>
+                    {events.map((event, idx) => (
+                      <Box
+                        key={idx}
+                        onClick={(e) => handleEventClick(event, e)}
+                        sx={{
+                          p: 0.5,
+                          borderRadius: 0.5,
+                          mb: 0.5,
+                          backgroundColor: 'primary.main',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          fontWeight: 'medium',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          cursor: 'pointer',
+                          '&:hover': {
+                            filter: 'brightness(0.95)'
+                          }
+                        }}
+                      >
+                        {event.title}
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })
+        ))}
+
+        {/* Current time indicator */}
+        {weekDays.some(day => isToday(day)) && (
+          <Box
+            sx={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: `calc(${(new Date().getHours() - HOURS[0] + new Date().getMinutes() / 60) * 100 / HOURS.length}%)`,
+              height: '2px',
+              bgcolor: 'error.main',
+              zIndex: 5,
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                left: 60, // width of time column
+                top: '-4px',
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                bgcolor: 'error.main'
+              }
+            }}
+          />
+        )}
+      </Box>
+
+      {/* Event Popover */}
       <Popover
         open={Boolean(anchorEl)}
         anchorEl={anchorEl}
         onClose={handleClose}
         anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
+          vertical: 'center',
+          horizontal: 'right',
         }}
         transformOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
+          vertical: 'center',
+          horizontal: 'left',
         }}
-        PaperProps={{
-          sx: { 
-            p: 2, 
-            minWidth: 300, 
-            maxWidth: 400, 
-            borderRadius: 2
-          }
-        }}
+        sx={{ mt: 1 }}
       >
-        {selectedDay && (
-          <>
-            <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 1 }}>
-              {format(selectedDay, 'EEEE, MMMM d')}
+        {selectedEvent && (
+          <Box sx={{ p: 2, maxWidth: 300 }}>
+            <Typography variant="h6" fontWeight="bold" gutterBottom>
+              {selectedEvent.title}
             </Typography>
             
-            {hasEvents ? (
-              <>
-                {selectedDayTasks.length > 0 && (
-                  <>
-                    <Typography variant="subtitle2" color="textSecondary" sx={{ mt: 2, mb: 1 }}>
-                      Tasks
-                    </Typography>
-                    <List disablePadding>
-                      {selectedDayTasks.map((task) => (
-                        <ListItem 
-                          key={task.id} 
-                          disablePadding 
-                          sx={{ 
-                            mb: 1,
-                            p: 1,
-                            borderRadius: 1,
-                            backgroundColor: 'rgba(25, 118, 210, 0.04)',
-                          }}
-                        >
-                          <ListItemText
-                            primary={task.title}
-                            secondary={
-                              <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5, gap: 1 }}>
-                                <Chip
-                                  label={task.category}
-                                  size="small"
-                                  sx={{
-                                    height: 20,
-                                    fontSize: '0.7rem',
-                                    borderRadius: 1,
-                                  }}
-                                />
-                                <Typography variant="caption" color="text.secondary">
-                                  {task.estimatedTime} min
-                                </Typography>
-                              </Box>
-                            }
-                            primaryTypographyProps={{
-                              variant: 'body2',
-                              fontWeight: 'medium',
-                            }}
-                          />
-                          {!task.completed && (
-                            <Button
-                              component={Link}
-                              to={`/focus?taskId=${task.id}`}
-                              size="small"
-                              variant="outlined"
-                              startIcon={<PlayIcon sx={{ fontSize: 16 }} />}
-                              sx={{ ml: 'auto', borderRadius: 1, py: 0.5 }}
-                            >
-                              Focus
-                            </Button>
-                          )}
-                        </ListItem>
-                      ))}
-                    </List>
-                  </>
-                )}
-                
-                {selectedDayBlocks.length > 0 && (
-                  <>
-                    <Typography variant="subtitle2" color="textSecondary" sx={{ mt: 2, mb: 1 }}>
-                      Time Blocks
-                    </Typography>
-                    <List disablePadding>
-                      {selectedDayBlocks.map((block) => (
-                        <ListItem
-                          key={block.id}
-                          disablePadding
-                          sx={{
-                            mb: 1,
-                            p: 1,
-                            borderRadius: 1,
-                            backgroundColor: 'rgba(76, 175, 80, 0.04)',
-                          }}
-                        >
-                          <ListItemText
-                            primary={block.title}
-                            secondary={
-                              <Typography variant="caption" color="text.secondary">
-                                {format(new Date(block.start), 'h:mm a')} - {format(new Date(block.end), 'h:mm a')}
-                              </Typography>
-                            }
-                            primaryTypographyProps={{
-                              variant: 'body2',
-                              fontWeight: 'medium',
-                            }}
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  </>
-                )}
-              </>
-            ) : (
-              <Typography color="text.secondary" sx={{ py: 2 }}>
-                No tasks or events scheduled for this day.
+            {selectedEvent.description && (
+              <Typography variant="body2" paragraph>
+                {selectedEvent.description}
               </Typography>
             )}
-          </>
+            
+            <Typography variant="body2" color="text.secondary">
+              {selectedEvent.start && format(
+                typeof selectedEvent.start === 'string' 
+                  ? new Date(selectedEvent.start) 
+                  : selectedEvent.start, 
+                'h:mm a'
+              )}
+              {selectedEvent.end && ` - ${format(
+                typeof selectedEvent.end === 'string'
+                  ? new Date(selectedEvent.end)
+                  : selectedEvent.end,
+                'h:mm a'
+              )}`}
+            </Typography>
+            
+            {selectedEvent.id && !selectedEvent.completed && (
+              <Button
+                component={Link}
+                to={`/focus?taskId=${selectedEvent.id}`}
+                variant="contained"
+                size="small"
+                startIcon={<PlayIcon />}
+                sx={{ mt: 2 }}
+              >
+                Focus
+              </Button>
+            )}
+          </Box>
         )}
       </Popover>
-    </Paper>
+    </Box>
   );
 } 
