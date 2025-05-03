@@ -6,9 +6,19 @@ import { useThemeContext } from '../../context/ThemeContext';
 // Motion components
 const MotionBox = motion(Box);
 
+// Define types for particles
+interface Particle {
+  id: number;
+  x: number;
+  y: number;
+  size: number;
+  duration: number;
+  color: string;
+}
+
 const AnimatedBackground = () => {
   const { currentTheme } = useThemeContext();
-  const [particles, setParticles] = useState<Array<any>>([]);
+  const [particles, setParticles] = useState<Particle[]>([]);
   const [windowSize, setWindowSize] = useState({ 
     width: window.innerWidth, 
     height: window.innerHeight 
@@ -30,7 +40,7 @@ const AnimatedBackground = () => {
   // Generate particles based on current theme
   useEffect(() => {
     const particleCount = 15; // Number of particles to generate
-    const newParticles = [];
+    const newParticles: Particle[] = [];
 
     for (let i = 0; i < particleCount; i++) {
       newParticles.push({

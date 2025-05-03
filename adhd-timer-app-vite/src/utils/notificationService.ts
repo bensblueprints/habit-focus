@@ -126,7 +126,7 @@ export const showInactivityNotification = (inactiveDays: number): void => {
   const message = messages[Math.floor(Math.random() * messages.length)];
 
   showNotification("Miss You! 👋", {
-    body: message,
+    body: message + (inactiveDays > 2 ? ` It's been ${inactiveDays} days since your last visit.` : ''),
     badge: '/badge-icon.png',
     vibrate: [200, 100, 200],
     data: { url: '/' }

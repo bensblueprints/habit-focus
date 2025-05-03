@@ -19,11 +19,8 @@ import {
   InputLabel, 
   Select, 
   MenuItem, 
-  SelectChangeEvent,
   IconButton,
   Tooltip,
-  Badge,
-  Grid,
   Checkbox,
   Fab,
   ToggleButtonGroup,
@@ -32,7 +29,6 @@ import {
 import { 
   AccessTime as TimeIcon, 
   Add as AddIcon,
-  EmojiEvents as TrophyIcon,
   PlayArrow as PlayIcon,
   CheckCircle as CheckCircleIcon,
   Today as TodayIcon,
@@ -40,18 +36,15 @@ import {
   PersonAdd as PersonAddIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   FilterList as FilterListIcon,
-  Edit as EditIcon,
   Psychology as PsychologyIcon,
   Bolt as BoltIcon,
   LocalFireDepartment as FireIcon,
-  Whatshot as WhatshotIcon,
   Star as StarIcon
 } from '@mui/icons-material';
 import { useAppContext } from '../../context/AppContext';
-import { useThemeContext } from '../../context/ThemeContext';
 import { Link } from 'react-router-dom';
 import Calendar from './Calendar';
-import { format, differenceInMinutes, parseISO } from 'date-fns';
+import { format, differenceInMinutes } from 'date-fns';
 
 // Motion components
 const MotionBox = motion(Box);
@@ -63,16 +56,11 @@ export default function Dashboard() {
   const { 
     tasks, 
     sessions, 
-    points, 
-    achievements, 
     completionRate,
     addTask,
     streak
   } = useAppContext();
   
-  const { currentTheme } = useThemeContext();
-  
-  const [showAllAchievements, setShowAllAchievements] = useState(false);
   const [showStreakCelebration, setShowStreakCelebration] = useState(false);
   
   // Initialize streak celebration effect when streak increases past milestone
@@ -119,9 +107,6 @@ export default function Dashboard() {
   
   // Get incomplete tasks
   const incompleteTasks = tasks.filter(task => !task.completed);
-  
-  // Get recent achievements
-  const recentAchievements = achievements.slice(0, showAllAchievements ? achievements.length : 3);
   
   // Format time as hours and minutes
   const formatTime = (minutes: number) => {
@@ -681,8 +666,8 @@ export default function Dashboard() {
                   p: 2, 
                   borderRadius: 2 
                 }}>
-                  {timeBetweenTasks.map((item, index) => (
-                    <Box key={index} sx={{ 
+                  {timeBetweenTasks.map((item, i) => (
+                    <Box key={i} sx={{ 
                       display: 'flex', 
                       alignItems: 'center', 
                       justifyContent: 'space-between',
@@ -745,7 +730,7 @@ export default function Dashboard() {
             
             {incompleteTasks.length > 0 ? (
               <Box sx={{ overflow: 'auto', flexGrow: 1 }}>
-                {incompleteTasks.map((task, index) => (
+                {incompleteTasks.map((task, _) => (
                   <Card 
                     key={task.id} 
                     variant="outlined" 

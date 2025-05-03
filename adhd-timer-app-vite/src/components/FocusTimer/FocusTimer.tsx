@@ -369,26 +369,23 @@ export default function FocusTimer() {
 
   // Get mode-specific colors and icons
   const getModeTheme = () => {
-    const themeColor = currentTheme.primaryColor;
-    const themeGradient = `linear-gradient(135deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})`;
-    
     switch(timerMode) {
       case 'focus':
         return {
           color: '#FF6B6B',
-          gradient: timerMode === 'focus' ? themeGradient : 'linear-gradient(135deg, #FF6B6B, #FF3636)',
+          gradient: timerMode === 'focus' ? `linear-gradient(135deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})` : 'linear-gradient(135deg, #FF6B6B, #FF3636)',
           icon: <FireIcon fontSize="large" sx={{ color: '#FF6B6B' }} />
         };
       case 'shortBreak':
         return {
           color: '#6BFF9E',
-          gradient: timerMode === 'shortBreak' ? themeGradient : 'linear-gradient(135deg, #6BFF9E, #00FF66)',
+          gradient: timerMode === 'shortBreak' ? `linear-gradient(135deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})` : 'linear-gradient(135deg, #6BFF9E, #00FF66)',
           icon: <LightbulbIcon fontSize="large" sx={{ color: '#6BFF9E' }} />
         };
       case 'longBreak':
         return {
           color: '#9E6BFF',
-          gradient: timerMode === 'longBreak' ? themeGradient : 'linear-gradient(135deg, #9E6BFF, #7700FF)',
+          gradient: timerMode === 'longBreak' ? `linear-gradient(135deg, ${currentTheme.gradientStart}, ${currentTheme.gradientEnd})` : 'linear-gradient(135deg, #9E6BFF, #7700FF)',
           icon: <VibrationIcon fontSize="large" sx={{ color: '#9E6BFF' }} />
         };
     }

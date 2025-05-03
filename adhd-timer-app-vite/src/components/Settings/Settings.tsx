@@ -14,7 +14,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   useTheme,
-  Grid as MuiGrid,
+  Grid,
   Card,
   CardContent,
   CardActionArea,
@@ -29,7 +29,6 @@ import {
   Info as InfoIcon,
   LightMode as LightModeIcon,
   DarkMode as DarkModeIcon,
-  VolumeUp as VolumeIcon,
   ColorLens as ColorLensIcon
 } from '@mui/icons-material';
 import { motion } from 'framer-motion';
@@ -132,9 +131,6 @@ export default function Settings() {
     }
   };
 
-  // Specify Mui Grid component types for TypeScript
-  const Grid = MuiGrid as typeof MuiGrid;
-  
   return (
     <Box>
       <Box sx={{ mb: 4 }}>
